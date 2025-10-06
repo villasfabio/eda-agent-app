@@ -1,0 +1,8 @@
+streamlit
+pandas
+matplotlib
+seaborn
+plotly
+python-dotenv
+openai==2.1.0
+scikit-learn
