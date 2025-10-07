@@ -120,7 +120,7 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     # Funções de formatação
     def write_text(text, bold=False, size=11):
         style = "B" if bold else ""
-        pdf.set_font("Arial", style, size)
+        pdf.set_font(font_used, style, size)
         pdf.multi_cell(0, 7, str(text))
 
     def format_list(l):
@@ -129,8 +129,17 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     def format_dict(d):
         return "\n".join([f"{k}: {v}" for k, v in d.items()])
 
+    # Tentar usar fonte Unicode DejaVu para suportar caracteres acentuados
+    try:
+        pdf.add_font("DejaVu", "", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", uni=True)
+        pdf.set_font("DejaVu", "", 12)
+        font_used = "DejaVu"
+    except Exception:
+        pdf.set_font("Arial", "", 12)
+        font_used = "Arial"
+
     # Cabeçalho
-    pdf.set_font("Arial", "B", 16)
+    pdf.set_font(font_used, "B", 16)
     pdf.cell(0, 10, "Agentes Autônomos – Relatório da Atividade Extra", ln=True, align="C")
     pdf.ln(5)
     pdf.set_font("Arial", "", 12)
@@ -201,7 +210,7 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     pdf.ln(5)
 
     # Gera PDF em memória e retorna bytes
-    pdf_bytes = pdf.output(dest='S').encode('latin-1', errors='ignore')
+    pdf_bytes = pdf.output(dest='S').encode('utf-8')
     return pdf_bytes
 
 # ===================== INTERFACE PRINCIPAL =====================
