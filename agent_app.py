@@ -5,7 +5,7 @@ Created on Sun Oct  5 13:22:38 2025
 @author: villa
 """
 
-# ===================== CÓDIGO EDA OTIMIZADO COM REQUISITOS =====================
+# ===================== CÓDIGO EDA OTIMIZADO PARA ENTREGA (COM COMENTÁRIOS) =====================
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -21,14 +21,18 @@ import os, json, gc
 
 # ===================== CONFIGURAÇÃO INICIAL =====================
 load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # chave API oculta
 st.set_page_config(page_title="Agente EDA Genérico", layout="wide")
 st.title("🤖 Agente de Análise de CSV — EDA Genérico (Versão PDF Completo)")
 
-HISTORY_PATH = "agent_history.json"
+HISTORY_PATH = "agent_history.json"  # histórico de perguntas/respostas para memória do agente
 
 # ===================== FUNÇÕES AUXILIARES =====================
 def load_history():
+    """
+    Carrega o histórico de interações do agente, permitindo memória.
+    Mantém até 20 entradas recentes.
+    """
     if os.path.exists(HISTORY_PATH):
         try:
             with open(HISTORY_PATH, "r", encoding="utf-8") as f:
@@ -38,16 +42,22 @@ def load_history():
     return []
 
 def save_history(hist):
-    hist = hist[-20:]  # manter apenas últimas 20 entradas
+    """
+    Salva o histórico de interações em arquivo JSON.
+    """
+    hist = hist[-20:]  # mantém apenas últimas 20 entradas
     with open(HISTORY_PATH, "w", encoding="utf-8") as f:
         json.dump(hist, f, ensure_ascii=False, indent=2)
     return hist
 
 if "history" not in st.session_state:
-    st.session_state.history = load_history()
+    st.session_state.history = load_history()  # inicializa memória do agente
 
 @st.cache_data(show_spinner=False)
 def load_csv(file):
+    """
+    Carrega CSV e tenta converter colunas numéricas que vieram como objeto.
+    """
     df = pd.read_csv(file)
     for col in df.columns:
         if df[col].dtype == 'object':
@@ -59,20 +69,27 @@ def load_csv(file):
 
 # ===================== CONCLUSÕES AUTOMÁTICAS =====================
 def gerar_conclusoes(df):
+    """
+    Analisa dados e gera conclusões automáticas:
+    - Outliers
+    - Tendência central
+    - Correlação
+    - Valores extremos
+    """
     num_cols = df.select_dtypes(include=['float64','int64']).columns.tolist()
     conclusions = []
 
-    # Outliers
+    # Identificação de outliers usando Z-score
     z_scores = np.abs(zscore(df[num_cols]))
     outliers_count = (z_scores > 3).sum(axis=0)
     outlier_cols = [col for col, count in zip(num_cols, outliers_count) if count > 0]
     conclusions.append(f"Colunas com outliers significativos: {outlier_cols}" if outlier_cols else "Não foram detectados outliers relevantes.")
 
-    # Tendência central
+    # Tendência central: médias mais altas
     high_mean_cols = df[num_cols].mean().sort_values(ascending=False).head(3).index.tolist()
     conclusions.append(f"Colunas com maiores médias: {high_mean_cols}")
 
-    # Correlação
+    # Correlação entre variáveis
     corr = df[num_cols].corr().abs()
     high_corr_pairs = corr.where(np.triu(np.ones(corr.shape), k=1).astype(bool)).stack().sort_values(ascending=False)
     if not high_corr_pairs.empty:
@@ -80,7 +97,7 @@ def gerar_conclusoes(df):
     else:
         conclusions.append("Não há correlações fortes entre as variáveis.")
 
-    # Valores extremos de transações
+    # Valores extremos da coluna 'Amount'
     if 'Amount' in df.columns:
         high_amounts = df['Amount'].sort_values(ascending=False).head(5).tolist()
         conclusions.append(f"Maiores valores de transação: {high_amounts}")
@@ -89,6 +106,13 @@ def gerar_conclusoes(df):
 
 # ===================== GERAÇÃO DE PDF =====================
 def gerar_pdf(hist, conclusoes=None):
+    """
+    Gera PDF final com:
+    1. Framework utilizado
+    2. Estrutura da solução
+    3. Até 4 perguntas/respostas (uma com gráfico)
+    4. Conclusões do agente
+    """
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -100,21 +124,22 @@ def gerar_pdf(hist, conclusoes=None):
         pdf.set_font("Arial", "B" if bold else "", size)
         pdf.multi_cell(0, 7, str(text))
 
-    # Framework e Estrutura
+    # Framework e estrutura
     write_text("Framework: Streamlit + Python + pandas + seaborn + matplotlib + sklearn", bold=True)
     write_text("Estrutura da solução: Upload CSV -> Perguntas EDA -> Conclusões -> PDF completo\n", bold=True)
 
-    # 4 Perguntas + respostas (uma com gráfico)
+    # Até 4 perguntas/respostas
     questions_to_include = hist[:4] if len(hist) >= 4 else hist
     for h in questions_to_include:
         write_text(f"Pergunta: {h['query']}", bold=True)
         write_text(f"Resposta: {h['result'][:700]}")
 
-    # Conclusões
+    # Conclusões automáticas
     if conclusoes:
         write_text("\nPergunta: Conclusões do agente", bold=True)
         write_text(conclusoes)
 
+    # PDF final com o nome exigido pelo trabalho
     pdf_bytes = pdf.output(dest='S').encode('latin-1', errors='ignore')
     return pdf_bytes
 
@@ -134,14 +159,17 @@ if uploaded_file:
     df = load_csv(uploaded_file)
     st.success(f"CSV carregado! Formato: {df.shape}")
 
+    # Amostragem para performance
     MAX_SAMPLE = 50000
     df_sample = df.sample(MAX_SAMPLE, random_state=42) if len(df) > MAX_SAMPLE else df
 
+    # Identificação automática de colunas numéricas e categóricas
     numerical_columns = df_sample.select_dtypes(include=['float64','int64']).columns.tolist()
     categorical_columns = df_sample.select_dtypes(include=['object']).columns.tolist()
 
     query = st.text_input("Faça sua pergunta de EDA:")
 
+    # Número de clusters ajustável
     n_clusters = st.sidebar.number_input("Número de clusters (KMeans)", min_value=2, max_value=10, value=3, step=1)
 
     if query:
@@ -153,7 +181,7 @@ if uploaded_file:
         if "tipo" in query_lower or "categoria" in query_lower:
             result = f"Colunas numéricas: {numerical_columns}\nColunas categóricas: {categorical_columns}"
 
-        # Distribuição
+        # Distribuição e cross-tabs
         elif "distribuição" in query_lower:
             for col in numerical_columns:
                 fig, ax = plt.subplots(figsize=(4,3))
@@ -162,7 +190,6 @@ if uploaded_file:
                 st.pyplot(fig)
                 plt.close(fig)
                 gc.collect()
-            # Cross-tabs automáticas para categóricas
             cross_tabs = ""
             for col in categorical_columns:
                 cross_tabs += f"\nColuna {col} - Contagem:\n{df_sample[col].value_counts().to_dict()}"
@@ -223,7 +250,7 @@ if uploaded_file:
         st.download_button(
             "Baixar Relatório PDF",
             data=pdf_bytes,
-            file_name="Agentes_Autonomos_Relatorio.pdf",
+            file_name="Agentes Autônomos – Relatório da Atividade Extra.pdf",
             mime="application/pdf"
         )
 
