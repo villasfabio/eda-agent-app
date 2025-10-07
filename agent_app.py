@@ -5,20 +5,19 @@ Created on Sun Oct  5 13:22:38 2025
 @author: villa
 """
 
-# ===================== CÓDIGO ATUALIZADO =====================
+# ===================== CÓDIGO EDA OTIMIZADO =====================
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import plotly.express as px
-import io, base64, os, json, gc
-from fpdf import FPDF
-from dotenv import load_dotenv
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from scipy.stats import zscore
+from fpdf import FPDF
+from dotenv import load_dotenv
+import os, json, gc
 
 # ===================== CONFIGURAÇÃO INICIAL =====================
 load_dotenv()
@@ -92,6 +91,7 @@ if uploaded_file:
     df = load_csv(uploaded_file)
     st.success(f"CSV carregado! Formato: {df.shape}")
 
+    # Amostragem para datasets grandes
     MAX_SAMPLE = 50000
     df_sample = df.sample(MAX_SAMPLE, random_state=42) if len(df) > MAX_SAMPLE else df
 
@@ -103,30 +103,38 @@ if uploaded_file:
     if query:
         st.info("🤖 Gerando análise objetiva...")
 
-        # DESCRIÇÃO DOS DADOS
-        if "tipo" in query.lower() or "categoria" in query.lower():
+        query_lower = query.lower()
+        result = ""
+
+        # ===================== DESCRIÇÃO DOS DADOS =====================
+        if "tipo" in query_lower or "categoria" in query_lower:
             result = f"Colunas numéricas: {numerical_columns}\nColunas categóricas: {categorical_columns}"
 
-        elif "distribuição" in query.lower():
-            result = ""
+        elif "distribuição" in query_lower:
+            # Histogramas para numéricas
             for col in numerical_columns:
-                counts, bins = np.histogram(df_sample[col].dropna(), bins=10)
-                result += f"\nColuna {col} - Contagem por bin: {list(counts)}"
+                fig, ax = plt.subplots(figsize=(6,4))
+                sns.histplot(df_sample[col].dropna(), bins=10, kde=True, ax=ax)
+                ax.set_title(f"Distribuição da coluna {col}")
+                st.pyplot(fig)
+                plt.close(fig)
+                gc.collect()
+            # Contagem para categóricas
             for col in categorical_columns:
                 result += f"\nColuna {col} - Contagem por categoria:\n{df_sample[col].value_counts().to_dict()}"
 
-        elif "intervalo" in query.lower() or "mínimo" in query.lower() or "máximo" in query.lower():
+        elif "intervalo" in query_lower or "mínimo" in query_lower or "máximo" in query_lower:
             result = df_sample[numerical_columns].agg(['min','max']).to_string()
 
-        elif "tendência central" in query.lower() or "média" in query.lower() or "mediana" in query.lower():
+        elif "tendência central" in query_lower or "média" in query_lower or "mediana" in query_lower:
             result = df_sample[numerical_columns].agg(['mean','median']).to_string()
 
-        elif "variabilidade" in query.lower() or "desvio padrão" in query.lower() or "variância" in query.lower():
+        elif "variabilidade" in query_lower or "desvio padrão" in query_lower or "variância" in query_lower:
             result = df_sample[numerical_columns].agg(['std','var']).to_string()
 
-        # PADRÕES E TENDÊNCIAS
-        elif "padrões" in query.lower() or "tendências temporais" in query.lower():
-            if 'Time' in df_sample.columns:
+        # ===================== PADRÕES E TENDÊNCIAS =====================
+        elif "padrões" in query_lower or "tendências temporais" in query_lower:
+            if 'Time' in df_sample.columns and 'Amount' in df_sample.columns:
                 fig, ax = plt.subplots(figsize=(10,5))
                 ax.plot(df_sample['Time'], df_sample['Amount'])
                 ax.set_title('Tendência temporal de Amount')
@@ -137,15 +145,14 @@ if uploaded_file:
                 gc.collect()
                 result = "Gráfico de tendência temporal gerado."
             else:
-                result = "Coluna 'Time' não encontrada."
+                result = "Coluna 'Time' ou 'Amount' não encontrada."
 
-        elif "valores mais frequentes" in query.lower() or "menos frequentes" in query.lower():
-            result = ""
+        elif "valores mais frequentes" in query_lower or "menos frequentes" in query_lower:
             for col in df_sample.columns:
                 vc = df_sample[col].value_counts()
                 result += f"\nColuna: {col}\nMais frequentes: {vc.head(5).to_dict()}\nMenos frequentes: {vc.tail(5).to_dict()}"
 
-        elif "clusters" in query.lower() or "agrupamentos" in query.lower():
+        elif "clusters" in query_lower or "agrupamentos" in query_lower:
             if len(df_sample) > 10000:
                 result = "Dataset grande demais para clusterização; reduza a amostra."
             else:
@@ -155,37 +162,37 @@ if uploaded_file:
                 X_pca = pca.fit_transform(X_scaled)
                 kmeans = KMeans(n_clusters=3, random_state=42).fit(X_scaled)
                 fig, ax = plt.subplots()
-                ax.scatter(X_pca[:,0], X_pca[:,1], c=kmeans.labels_)
+                scatter = ax.scatter(X_pca[:,0], X_pca[:,1], c=kmeans.labels_, cmap='viridis', alpha=0.6)
                 ax.set_title("Clusters PCA")
                 st.pyplot(fig)
                 plt.close(fig)
                 gc.collect()
                 result = "Clusters gerados usando PCA e KMeans."
 
-        # DETECÇÃO DE ANOMALIAS
-        elif "valores atípicos" in query.lower() or "outliers" in query.lower():
+        # ===================== DETECÇÃO DE ANOMALIAS =====================
+        elif "valores atípicos" in query_lower or "outliers" in query_lower:
             z_scores = np.abs(zscore(df_sample[numerical_columns]))
             outliers_count = (z_scores > 3).sum(axis=0)
             result = f"Outliers por coluna:\n{dict(zip(numerical_columns, outliers_count))}"
 
-        elif "afetam a análise" in query.lower():
+        elif "afetam a análise" in query_lower:
             z_scores = np.abs(zscore(df_sample[numerical_columns]))
             df_no_outliers = df_sample[(z_scores < 3).all(axis=1)]
             result = f"Antes:\n{df_sample[numerical_columns].describe().T}\n\nDepois (sem outliers):\n{df_no_outliers[numerical_columns].describe().T}"
 
-        elif "removidos" in query.lower() or "transformados" in query.lower() or "investigados" in query.lower():
+        elif "removidos" in query_lower or "transformados" in query_lower or "investigados" in query_lower:
             result = "Recomenda-se: remover outliers extremos, transformar variáveis ou investigar casos específicos."
 
-        # RELAÇÕES ENTRE VARIÁVEIS
-        elif "relacionadas" in query.lower() or "dispersão" in query.lower():
+        # ===================== RELAÇÕES ENTRE VARIÁVEIS =====================
+        elif "relacionadas" in query_lower or "dispersão" in query_lower:
             subset_cols = numerical_columns[:5]  # limitar pairplot
             pairgrid = sns.pairplot(df_sample[subset_cols])
-            st.pyplot(pairgrid.fig)  # usa .fig
+            st.pyplot(pairgrid.fig)
             plt.close(pairgrid.fig)
             gc.collect()
             result = "Pairplot gerado (apenas primeiras 5 colunas numéricas)."
 
-        elif "correlação" in query.lower():
+        elif "correlação" in query_lower:
             corr = df_sample[numerical_columns].corr()
             fig, ax = plt.subplots(figsize=(12,8))
             sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
@@ -194,7 +201,7 @@ if uploaded_file:
             gc.collect()
             result = "Heatmap de correlação gerado."
 
-        elif "influência" in query.lower():
+        elif "influência" in query_lower:
             corr = df_sample[numerical_columns].corr().abs().sum().sort_values(ascending=False)
             result = f"Variáveis com maior influência:\n{corr.to_string()}"
 
