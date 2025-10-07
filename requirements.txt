@@ -6,3 +6,8 @@ plotly
 python-dotenv
 openai==2.1.0
 scikit-learn
+tiktoken
+tenacity
+numpy
+requests
+fpdf
