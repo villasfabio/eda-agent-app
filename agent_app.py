@@ -17,7 +17,7 @@ from sklearn.cluster import KMeans
 from scipy.stats import zscore
 from fpdf import FPDF
 from dotenv import load_dotenv
-import os, json, gc
+import os, json, gc, tempfile, urllib.request
 
 # ===================== CONFIGURAÇÃO INICIAL =====================
 load_dotenv()
@@ -94,32 +94,37 @@ def gerar_conclusoes(df):
 
 # ===================== CORREÇÃO: GERAÇÃO DE PDF =====================
 def gerar_pdf(hist, conclusoes=None):
+    # Fonte Unicode compatível (DejaVuSans)
+    font_path = os.path.join(tempfile.gettempdir(), "DejaVuSans.ttf")
+    if not os.path.exists(font_path):
+        url = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf"
+        urllib.request.urlretrieve(url, font_path)
+
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Arial", "B", 16)
+    pdf.add_font("DejaVu", "", font_path, uni=True)
+    pdf.set_font("DejaVu", "", 16)
     pdf.cell(0, 10, "Agentes Autônomos – Relatório da Atividade Extra", ln=True, align="C")
     pdf.ln(10)
-    pdf.set_font("Arial", "", 12)
+    pdf.set_font("DejaVu", "", 11)
 
     for h in hist:
-        pdf.set_font("Arial", "B", 12)
-        pergunta = h['query'].encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 7, f"Pergunta: {pergunta}")
-        pdf.set_font("Arial", "", 12)
-        resposta = h['result'][:700].encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 7, f"Resposta: {resposta}")
+        pdf.set_font("DejaVu", "B", 11)
+        pdf.multi_cell(0, 7, f"Pergunta: {h['query']}")
+        pdf.set_font("DejaVu", "", 11)
+        pdf.multi_cell(0, 7, f"Resposta: {h['result'][:700]}")
         pdf.ln(4)
 
     if conclusoes:
-        pdf.set_font("Arial", "B", 12)
+        pdf.set_font("DejaVu", "B", 11)
         pdf.multi_cell(0, 7, "Pergunta: Conclusões do agente")
-        pdf.set_font("Arial", "", 12)
-        conclusoes_txt = conclusoes.encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 7, conclusoes_txt)
+        pdf.set_font("DejaVu", "", 11)
+        pdf.multi_cell(0, 7, conclusoes)
         pdf.ln(4)
 
-    pdf_bytes = pdf.output(dest='S').encode('latin-1')
+    # Gera PDF como bytes (UTF-8 seguro)
+    pdf_bytes = pdf.output(dest='S').encode('latin-1', errors='ignore')
     return pdf_bytes
 
 # ===================== INTERFACE PRINCIPAL =====================
