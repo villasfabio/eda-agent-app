@@ -177,9 +177,18 @@ if uploaded_file:
 
     if query:
         st.info("🤖 Gerando código e executando automaticamente...")
-        prompt = f"O dataframe `df` está carregado com {df_info}. Pergunta: {query}\n" \
-                 f"Analise apenas as colunas numéricas relevantes ({list(df_numeric.columns)}). " \
-                 f"Inclua gráficos, média, mediana, min, max, std e contagem de valores."
+
+        # ----------------------
+        # VERIFICAÇÃO DE PERGUNTA
+        # ----------------------
+        if "tipo" in query.lower() or "dados" in query.lower() or "categoria" in query.lower():
+            prompt = f"O dataframe `df` está carregado com {df_info}. Pergunta: {query}\n" \
+                     f"Identifique colunas numéricas e categóricas com base nos tipos de dados."
+        else:
+            prompt = f"O dataframe `df` está carregado com {df_info}. Pergunta: {query}\n" \
+                     f"Analise apenas as colunas numéricas relevantes ({list(df_numeric.columns)}). " \
+                     f"Inclua gráficos, média, mediana, min, max, std e contagem de valores."
+
         code = generate_response(prompt, mode="code")
         st.code(code, language="python")
         result, img_b64_list = execute_code(code, df_sample)
