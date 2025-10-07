@@ -118,7 +118,7 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     pdf.add_page()
     
     # Adiciona fonte Unicode
-    pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+    pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     pdf.set_auto_page_break(auto=True, margin=15)
 
     # Funções de formatação
