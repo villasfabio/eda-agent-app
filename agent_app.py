@@ -92,9 +92,11 @@ def gerar_conclusoes(df):
 
     return "\n".join(conclusions)
 
+# ===================== CORREÇÃO: GERAÇÃO DE PDF =====================
 def gerar_pdf(hist, conclusoes=None):
     pdf = FPDF()
     pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font("Arial", "B", 16)
     pdf.cell(0, 10, "Agentes Autônomos – Relatório da Atividade Extra", ln=True, align="C")
     pdf.ln(10)
@@ -102,29 +104,31 @@ def gerar_pdf(hist, conclusoes=None):
 
     for h in hist:
         pdf.set_font("Arial", "B", 12)
-        pdf.multi_cell(0, 7, f"Pergunta: {h['query']}")
+        pergunta = h['query'].encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 7, f"Pergunta: {pergunta}")
         pdf.set_font("Arial", "", 12)
-        pdf.multi_cell(0, 7, f"Resposta: {h['result'][:700]}")
+        resposta = h['result'][:700].encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 7, f"Resposta: {resposta}")
         pdf.ln(4)
 
     if conclusoes:
         pdf.set_font("Arial", "B", 12)
         pdf.multi_cell(0, 7, "Pergunta: Conclusões do agente")
         pdf.set_font("Arial", "", 12)
-        pdf.multi_cell(0, 7, conclusoes)
+        conclusoes_txt = conclusoes.encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 7, conclusoes_txt)
         pdf.ln(4)
 
-    path = "Agentes_Autonomos_Relatorio.pdf"
-    pdf.output(path)
-    return path
+    pdf_bytes = pdf.output(dest='S').encode('latin-1')
+    return pdf_bytes
 
 # ===================== INTERFACE PRINCIPAL =====================
 st.sidebar.header("📘 Instruções")
 st.sidebar.markdown("""
-1. Carregue um CSV
-2. Faça perguntas sobre o dataset
-3. O agente responde com análise objetiva
-4. Gere conclusões e exporte o PDF
+1. Carregue um CSV  
+2. Faça perguntas sobre o dataset  
+3. O agente responde com análise objetiva  
+4. Gere conclusões e exporte o PDF  
 """)
 
 uploaded_file = st.file_uploader("📂 Carregue o CSV", type="csv")
@@ -265,9 +269,13 @@ if uploaded_file:
     # ==== Botão de gerar PDF com conclusões ====
     if st.button("📄 Gerar Relatório PDF"):
         conclusoes_text = gerar_conclusoes(df_sample)
-        path = gerar_pdf(st.session_state.history, conclusoes_text)
-        with open(path, "rb") as f:
-            st.download_button("Baixar Relatório PDF", data=f, file_name=path, mime="application/pdf")
+        pdf_bytes = gerar_pdf(st.session_state.history, conclusoes_text)
+        st.download_button(
+            "Baixar Relatório PDF",
+            data=pdf_bytes,
+            file_name="Agentes_Autonomos_Relatorio.pdf",
+            mime="application/pdf"
+        )
 
     st.markdown("### Visualizar parte do dataset")
     st.dataframe(df_sample.head(200))
