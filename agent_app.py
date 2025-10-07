@@ -52,11 +52,13 @@ if "history" not in st.session_state:
 @st.cache_data(show_spinner=False)
 def load_csv(file):
     df = pd.read_csv(file)
+    # Corrige depreciação do errors='ignore'
     for col in df.columns:
-        try:
-            df[col] = pd.to_numeric(df[col], errors='ignore')
-        except:
-            continue
+        if df[col].dtype == 'object':
+            try:
+                df[col] = pd.to_numeric(df[col])
+            except Exception:
+                pass
     return df
 
 def generate_response(prompt, mode="code"):
@@ -100,6 +102,7 @@ def execute_code(code, df):
 
     text_output = output.getvalue().strip()
 
+    # Captura gráficos Matplotlib
     for fig_num in plt.get_fignums():
         buf = io.BytesIO()
         plt.figure(fig_num).savefig(buf, format="png", bbox_inches="tight")
@@ -163,7 +166,7 @@ if uploaded_file:
     MAX_SAMPLE = 150000
     df_sample = df.sample(MAX_SAMPLE, random_state=42) if len(df) > MAX_SAMPLE else df
 
-    # Seleciona colunas numéricas relevantes automaticamente
+    # Colunas numéricas relevantes
     excluded_cols = ['Time', 'Class']
     numeric_cols = df_sample.select_dtypes(include='number').columns.difference(excluded_cols)
     df_numeric = df_sample[numeric_cols]
@@ -183,7 +186,7 @@ if uploaded_file:
         st.write(result)
         if img_b64_list:
             for img_b64 in img_b64_list:
-                st.image(base64.b64decode(img_b64), use_column_width=True)
+                st.image(base64.b64decode(img_b64), use_container_width=True)
         st.session_state.history.append({"query": query, "result": result})
         save_history(st.session_state.history)
 
