@@ -102,7 +102,6 @@ if uploaded_file:
 
     if query:
         st.info("🤖 Gerando análise objetiva...")
-
         query_lower = query.lower()
         result = ""
 
@@ -111,14 +110,21 @@ if uploaded_file:
             result = f"Colunas numéricas: {numerical_columns}\nColunas categóricas: {categorical_columns}"
 
         elif "distribuição" in query_lower:
-            # Histogramas para numéricas
-            for col in numerical_columns:
-                fig, ax = plt.subplots(figsize=(6,4))
-                sns.histplot(df_sample[col].dropna(), bins=10, kde=True, ax=ax)
-                ax.set_title(f"Distribuição da coluna {col}")
-                st.pyplot(fig)
-                plt.close(fig)
-                gc.collect()
+            # Histogramas minigráficos para numéricas
+            n_cols_per_row = 3
+            num_cols = len(numerical_columns)
+            for i in range(0, num_cols, n_cols_per_row):
+                cols = st.columns(n_cols_per_row)
+                for j, col in enumerate(numerical_columns[i:i+n_cols_per_row]):
+                    with cols[j]:
+                        fig, ax = plt.subplots(figsize=(4,3))
+                        sns.histplot(df_sample[col].dropna(), bins=10, kde=True, ax=ax)
+                        ax.set_title(col, fontsize=10)
+                        ax.set_xlabel("")
+                        ax.set_ylabel("")
+                        st.pyplot(fig)
+                        plt.close(fig)
+                        gc.collect()
             # Contagem para categóricas
             for col in categorical_columns:
                 result += f"\nColuna {col} - Contagem por categoria:\n{df_sample[col].value_counts().to_dict()}"
@@ -199,11 +205,17 @@ if uploaded_file:
             st.pyplot(fig)
             plt.close(fig)
             gc.collect()
-            result = "Heatmap de correlação gerado."
+            # Interpretação automática
+            high_corr = corr.unstack().sort_values(ascending=False)
+            high_corr = high_corr[high_corr < 1]  # remover diagonal
+            top_corr = high_corr[0:5]
+            result = f"Heatmap de correlação gerado.\nSim, há correlação significativa entre algumas variáveis, por exemplo:\n{top_corr.to_string()}"
 
         elif "influência" in query_lower:
-            corr = df_sample[numerical_columns].corr().abs().sum().sort_values(ascending=False)
-            result = f"Variáveis com maior influência:\n{corr.to_string()}"
+            corr_sum = df_sample[numerical_columns].corr().abs().sum().sort_values(ascending=False)
+            top_5 = corr_sum.head(5)
+            low_5 = corr_sum.tail(5)
+            result = f"Variáveis com maior influência:\n{top_5.to_string()}\n\nVariáveis com menor influência:\n{low_5.to_string()}"
 
         else:
             result = "Pergunta não reconhecida ou não implementada para análise objetiva."
