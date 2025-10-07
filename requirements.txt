@@ -1,13 +1,35 @@
+# Streamlit para interface
 streamlit==1.28.0
+
+# Manipulação e análise de dados
 pandas>=2.3.3
+numpy>=1.26.4
+scipy>=1.16.2
+scikit-learn>=1.7.2
+joblib>=1.5.2
+
+# Visualização
 matplotlib>=3.10.6
 seaborn>=0.13.2
 plotly>=6.3.1
+pillow>=10.4.0
+
+# Comunicação com API e utilitários
+requests>=2.32.5
 python-dotenv>=1.1.1
+validators>=0.35.0
+python-dateutil>=2.9.0.post0
+pytz>=2025.2
+tzdata>=2025.2
+
+# OpenAI
 openai==2.1.0
-scikit-learn>=1.7.2
 tiktoken>=0.12.0
 tenacity>=8.5.0
-numpy>=1.26.4
-requests>=2.32.5
+
+# Relatórios PDF
 fpdf>=1.7.2
+
+# Logs e progress bar
+rich>=13.9.4
+tqdm>=4.67.1

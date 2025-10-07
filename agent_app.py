@@ -14,6 +14,7 @@ import io, base64, os, json, traceback, contextlib
 from openai import OpenAI
 from dotenv import load_dotenv
 from fpdf import FPDF
+from packaging import version
 
 # =====================
 # CONFIGURAÇÃO INICIAL
@@ -184,9 +185,18 @@ if uploaded_file:
         result, img_b64_list = execute_code(code, df_sample)
         st.subheader("Resultado da Análise")
         st.write(result)
+
+        # Correção do parâmetro de exibição de imagens
         if img_b64_list:
             for img_b64 in img_b64_list:
-                st.image(base64.b64decode(img_b64), use_container_width=True)
+                st_version = st.__version__
+                kwargs = {}
+                if version.parse(st_version) >= version.parse("1.29.0"):
+                    kwargs["use_container_width"] = True
+                else:
+                    kwargs["use_column_width"] = True
+                st.image(base64.b64decode(img_b64), **kwargs)
+
         st.session_state.history.append({"query": query, "result": result})
         save_history(st.session_state.history)
 
