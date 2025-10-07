@@ -5,7 +5,6 @@ Created on Sun Oct  5 13:22:38 2025
 @author: villa
 """
 
-# ===================== CÓDIGO EDA OTIMIZADO =====================
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -18,6 +17,7 @@ from scipy.stats import zscore
 from fpdf import FPDF
 from dotenv import load_dotenv
 import os, json, gc
+from datetime import datetime
 
 # ===================== CONFIGURAÇÃO INICIAL =====================
 load_dotenv()
@@ -92,17 +92,17 @@ def gerar_conclusoes(df):
 
     return "\n".join(conclusions)
 
-# ===================== CORREÇÃO: GERAÇÃO DE PDF =====================
+# ===================== GERAÇÃO DE PDF REVISADA =====================
 def gerar_pdf(hist, conclusoes=None):
     """
-    Gera PDF em memória (bytes). Usa fonte Unicode local se disponível.
-    Se não houver fonte Unicode disponível localmente, faz fallback para latin-1 safe.
+    Gera um PDF organizado com histórico de perguntas/respostas e conclusões.
+    Usa fonte Unicode local se disponível, com fallback para Arial.
     """
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # caminhos locais possíveis para fontes Unicode (não faz downloads)
+    # Caminhos locais possíveis para fontes Unicode
     possible_font_paths = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
@@ -122,23 +122,13 @@ def gerar_pdf(hist, conclusoes=None):
     use_unicode_font = False
     if font_path:
         try:
-            # registra duas famílias (normal + "bold") usando o mesmo arquivo TTF
             pdf.add_font("DejaVu", "", font_path, uni=True)
-            # registra uma família separada para "bold" (mesmo TTF) para evitar usar style 'B'
             pdf.add_font("DejaVu-Bold", "", font_path, uni=True)
             use_unicode_font = True
         except Exception:
             use_unicode_font = False
 
-    # Cabeçalho
-    if use_unicode_font:
-        pdf.set_font("DejaVu", "", 16)
-    else:
-        pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Agentes Autônomos – Relatório da Atividade Extra", ln=True, align="C")
-    pdf.ln(10)
-
-    # helper para escrever texto com fallback de encoding e família
+    # Função auxiliar para escrever texto com fallback
     def write_text(text, bold=False, size=11):
         if use_unicode_font:
             family = "DejaVu-Bold" if bold else "DejaVu"
@@ -147,22 +137,59 @@ def gerar_pdf(hist, conclusoes=None):
         else:
             style = "B" if bold else ""
             pdf.set_font("Arial", style, size)
-            # garante que caracteres problemáticos não explodam o FPDF
             safe_text = str(text).encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 7, safe_text)
 
-    # escreve histórico de perguntas e respostas
-    for h in hist:
-        write_text(f"Pergunta: {h['query']}", bold=True, size=12)
-        write_text(f"Resposta: {h['result'][:700]}", bold=False, size=11)
-        pdf.ln(4)
+    # Cabeçalho do relatório
+    if use_unicode_font:
+        pdf.set_font("DejaVu-Bold", "", 16)
+    else:
+        pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, "Agentes Autônomos – Relatório da Atividade Extra", ln=True, align="C")
+    pdf.ln(5)
+    if use_unicode_font:
+        pdf.set_font("DejaVu", "", 12)
+    else:
+        pdf.set_font("Arial", "", 12)
+    pdf.cell(0, 10, f"Gerado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True, align="C")
+    pdf.ln(10)
 
+    # Filtrar perguntas duplicadas (mantém a última ocorrência)
+    seen_queries = {}
+    for entry in reversed(hist):
+        seen_queries[entry['query']] = entry
+    unique_hist = list(reversed(list(seen_queries.values())))
+
+    # Seção de perguntas e respostas
+    if use_unicode_font:
+        pdf.set_font("DejaVu-Bold", "", 14)
+    else:
+        pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Perguntas e Respostas", ln=True)
+    pdf.ln(5)
+
+    for i, h in enumerate(unique_hist, 1):
+        query = h['query']
+        result = h['result']
+        # Substituir respostas não implementadas
+        if "não reconhecida ou não implementada" in result:
+            result = "Esta pergunta não pôde ser processada automaticamente. Tente reformular ou fornecer mais detalhes."
+
+        write_text(f"{i}. Pergunta: {query}", bold=True, size=12)
+        write_text(f"Resposta: {result}", bold=False, size=11)
+        pdf.ln(8)
+
+    # Seção de conclusões
     if conclusoes:
-        write_text("Pergunta: Conclusões do agente", bold=True, size=12)
+        if use_unicode_font:
+            pdf.set_font("DejaVu-Bold", "", 14)
+        else:
+            pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Conclusões do Agente", ln=True)
+        pdf.ln(5)
         write_text(conclusoes, bold=False, size=11)
-        pdf.ln(4)
 
-    # Gera PDF em memória e retorna bytes (encode latin-1 para compatibilidade com FPDF internamente)
+    # Gera PDF em memória e retorna bytes
     pdf_bytes = pdf.output(dest='S').encode('latin-1', errors='ignore')
     return pdf_bytes
 
