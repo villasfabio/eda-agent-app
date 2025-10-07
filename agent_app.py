@@ -5,6 +5,7 @@ Created on Sun Oct  5 13:22:38 2025
 @author: villa
 """
 
+# ===================== CÓDIGO ATUALIZADO =====================
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -19,9 +20,7 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from scipy.stats import zscore
 
-# =====================
-# CONFIGURAÇÃO INICIAL
-# =====================
+# ===================== CONFIGURAÇÃO INICIAL =====================
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 st.set_page_config(page_title="Agente EDA Genérico", layout="wide")
@@ -29,9 +28,7 @@ st.title("🤖 Agente de Análise de CSV — EDA Genérico (Versão Otimizada)")
 
 HISTORY_PATH = "agent_history.json"
 
-# =====================
-# FUNÇÕES AUXILIARES
-# =====================
+# ===================== FUNÇÕES AUXILIARES =====================
 def load_history():
     if os.path.exists(HISTORY_PATH):
         try:
@@ -42,8 +39,7 @@ def load_history():
     return []
 
 def save_history(hist):
-    # manter apenas últimas 20 entradas para economia de memória
-    hist = hist[-20:]
+    hist = hist[-20:]  # manter apenas últimas 20 entradas
     with open(HISTORY_PATH, "w", encoding="utf-8") as f:
         json.dump(hist, f, ensure_ascii=False, indent=2)
     return hist
@@ -81,9 +77,7 @@ def gerar_pdf(hist):
     pdf.output(path)
     return path
 
-# =====================
-# INTERFACE PRINCIPAL
-# =====================
+# ===================== INTERFACE PRINCIPAL =====================
 st.sidebar.header("📘 Instruções")
 st.sidebar.markdown("""
 1. Carregue um CSV
@@ -98,8 +92,7 @@ if uploaded_file:
     df = load_csv(uploaded_file)
     st.success(f"CSV carregado! Formato: {df.shape}")
 
-    # Amostragem para datasets grandes
-    MAX_SAMPLE = 50000  # reduzido para memória
+    MAX_SAMPLE = 50000
     df_sample = df.sample(MAX_SAMPLE, random_state=42) if len(df) > MAX_SAMPLE else df
 
     numerical_columns = df_sample.select_dtypes(include=['float64','int64']).columns.tolist()
@@ -186,9 +179,9 @@ if uploaded_file:
         # RELAÇÕES ENTRE VARIÁVEIS
         elif "relacionadas" in query.lower() or "dispersão" in query.lower():
             subset_cols = numerical_columns[:5]  # limitar pairplot
-            fig = sns.pairplot(df_sample[subset_cols])
-            st.pyplot(fig)
-            plt.close(fig)
+            pairgrid = sns.pairplot(df_sample[subset_cols])
+            st.pyplot(pairgrid.fig)  # usa .fig
+            plt.close(pairgrid.fig)
             gc.collect()
             result = "Pairplot gerado (apenas primeiras 5 colunas numéricas)."
 
