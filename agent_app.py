@@ -53,7 +53,6 @@ if "history" not in st.session_state:
 @st.cache_data(show_spinner=False)
 def load_csv(file):
     df = pd.read_csv(file)
-    # Corrige depreciação do errors='ignore'
     for col in df.columns:
         if df[col].dtype == 'object':
             try:
@@ -63,7 +62,6 @@ def load_csv(file):
     return df
 
 def generate_response(prompt, mode="code"):
-    """mode='code' retorna código Python; mode='text' retorna resumo textual"""
     system_msg = "Você é um especialista em EDA."
     if mode == "code":
         system_msg += " Gere apenas código Python executável, sem ```."
@@ -83,7 +81,6 @@ def generate_response(prompt, mode="code"):
     return resp.choices[0].message.content.strip()
 
 def execute_code(code, df):
-    """Executa código Python seguro e captura gráficos e prints"""
     allowed_builtins = {
         "__import__": __import__,
         "print": print,
@@ -103,7 +100,6 @@ def execute_code(code, df):
 
     text_output = output.getvalue().strip()
 
-    # Captura gráficos Matplotlib
     for fig_num in plt.get_fignums():
         buf = io.BytesIO()
         plt.figure(fig_num).savefig(buf, format="png", bbox_inches="tight")
@@ -167,7 +163,6 @@ if uploaded_file:
     MAX_SAMPLE = 150000
     df_sample = df.sample(MAX_SAMPLE, random_state=42) if len(df) > MAX_SAMPLE else df
 
-    # Colunas numéricas relevantes
     excluded_cols = ['Time', 'Class']
     numeric_cols = df_sample.select_dtypes(include='number').columns.difference(excluded_cols)
     df_numeric = df_sample[numeric_cols]
@@ -179,15 +174,24 @@ if uploaded_file:
         st.info("🤖 Gerando código e executando automaticamente...")
 
         # ----------------------
-        # VERIFICAÇÃO DE PERGUNTA
+        # VERIFICAÇÃO DE PERGUNTA COM PRINT AUTOMÁTICO
         # ----------------------
         if "tipo" in query.lower() or "dados" in query.lower() or "categoria" in query.lower():
-            prompt = f"O dataframe `df` está carregado com {df_info}. Pergunta: {query}\n" \
-                     f"Identifique colunas numéricas e categóricas com base nos tipos de dados."
+            prompt = f"""
+O dataframe `df` está carregado com {df_info}. Pergunta: {query}
+Identifique colunas numéricas e categóricas com base nos tipos de dados.
+Inclua no código linhas que exibam os resultados usando print(), assim:
+numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns.tolist()
+categorical_columns = df.select_dtypes(include=['object']).columns.tolist()
+print("Colunas numéricas:", numerical_columns)
+print("Colunas categóricas:", categorical_columns)
+"""
         else:
-            prompt = f"O dataframe `df` está carregado com {df_info}. Pergunta: {query}\n" \
-                     f"Analise apenas as colunas numéricas relevantes ({list(df_numeric.columns)}). " \
-                     f"Inclua gráficos, média, mediana, min, max, std e contagem de valores."
+            prompt = f"""
+O dataframe `df` está carregado com {df_info}. Pergunta: {query}
+Analise apenas as colunas numéricas relevantes ({list(df_numeric.columns)}).
+Inclua gráficos, média, mediana, min, max, std e contagem de valores.
+"""
 
         code = generate_response(prompt, mode="code")
         st.code(code, language="python")
@@ -195,7 +199,6 @@ if uploaded_file:
         st.subheader("Resultado da Análise")
         st.write(result)
 
-        # Correção do parâmetro de exibição de imagens
         if img_b64_list:
             for img_b64 in img_b64_list:
                 st_version = st.__version__
