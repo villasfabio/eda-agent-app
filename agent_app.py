@@ -15,6 +15,11 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from fpdf import FPDF
 from packaging import version
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from scipy.stats import zscore
 
 # =====================
 # CONFIGURAÇÃO INICIAL
@@ -27,7 +32,7 @@ if not OPENAI_API_KEY:
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 st.set_page_config(page_title="Agente EDA Genérico", layout="wide")
-st.title("🤖 Agente de Análise de CSV — EDA Genérico (Versão Final)")
+st.title("🤖 Agente de Análise de CSV — EDA Genérico (Versão Limpa)")
 
 HISTORY_PATH = "agent_history.json"
 
@@ -53,6 +58,7 @@ if "history" not in st.session_state:
 @st.cache_data(show_spinner=False)
 def load_csv(file):
     df = pd.read_csv(file)
+    # Corrige depreciação do errors='ignore'
     for col in df.columns:
         if df[col].dtype == 'object':
             try:
@@ -60,57 +66,6 @@ def load_csv(file):
             except Exception:
                 pass
     return df
-
-def generate_response(prompt, mode="code"):
-    system_msg = "Você é um especialista em EDA."
-    if mode == "code":
-        system_msg += " Gere apenas código Python executável, sem ```."
-    else:
-        system_msg += " Responda com texto analítico, claro e objetivo."
-
-    messages = [
-        {"role": "system", "content": system_msg},
-        {"role": "user", "content": prompt}
-    ]
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages,
-        max_tokens=1200,
-        temperature=0
-    )
-    return resp.choices[0].message.content.strip()
-
-def execute_code(code, df):
-    allowed_builtins = {
-        "__import__": __import__,
-        "print": print,
-        "len": len, "min": min, "max": max, "sum": sum,
-        "range": range, "int": int, "float": float, "str": str,
-        "bool": bool, "list": list, "dict": dict, "set": set, "enumerate": enumerate
-    }
-    local_env = {"df": df, "pd": pd, "plt": plt, "sns": sns, "px": px, "io": io, "base64": base64, "st": st}
-    output = io.StringIO()
-    img_b64_list = []
-
-    try:
-        with contextlib.redirect_stdout(output):
-            exec(code, {"__builtins__": allowed_builtins}, local_env)
-    except Exception:
-        return f"Erro durante execução:\n{traceback.format_exc()}", None
-
-    text_output = output.getvalue().strip()
-
-    for fig_num in plt.get_fignums():
-        buf = io.BytesIO()
-        plt.figure(fig_num).savefig(buf, format="png", bbox_inches="tight")
-        buf.seek(0)
-        img_b64_list.append(base64.b64encode(buf.read()).decode())
-        plt.close(fig_num)
-
-    if not text_output:
-        text_output = "Código executado com sucesso, mas sem saída textual."
-
-    return text_output, img_b64_list if img_b64_list else None
 
 def gerar_pdf(hist):
     pdf = FPDF()
@@ -122,7 +77,7 @@ def gerar_pdf(hist):
 
     sections = [
         ("1. Framework escolhida", "Streamlit + OpenAI API (gpt-4o-mini)."),
-        ("2. Estrutura da solução", "O agente lê um CSV, interpreta perguntas, gera código Python para EDA com gráficos e conclusões."),
+        ("2. Estrutura da solução", "O agente lê um CSV, interpreta perguntas e gera análise de EDA objetiva."),
         ("3. Perguntas e respostas", "")
     ]
 
@@ -140,8 +95,8 @@ def gerar_pdf(hist):
         pdf.multi_cell(0, 7, f"Resposta: {h['result'][:700]}")
         pdf.ln(4)
 
-    pdf.output("Agentes Autônomos – Relatório da Atividade Extra.pdf")
-    return "Agentes Autônomos – Relatório da Atividade Extra.pdf"
+    pdf.output("Agentes_Autonomos_Relatorio.pdf")
+    return "Agentes_Autonomos_Relatorio.pdf"
 
 # =====================
 # INTERFACE PRINCIPAL
@@ -150,7 +105,7 @@ st.sidebar.header("📘 Instruções")
 st.sidebar.markdown("""
 1. Carregue um CSV
 2. Faça perguntas sobre o dataset
-3. O agente responde com código, gráficos e texto
+3. O agente responde com análise objetiva
 4. Gere conclusões e exporte o PDF
 """)
 
@@ -163,65 +118,120 @@ if uploaded_file:
     MAX_SAMPLE = 150000
     df_sample = df.sample(MAX_SAMPLE, random_state=42) if len(df) > MAX_SAMPLE else df
 
-    excluded_cols = ['Time', 'Class']
-    numeric_cols = df_sample.select_dtypes(include='number').columns.difference(excluded_cols)
-    df_numeric = df_sample[numeric_cols]
+    # Colunas numéricas e categóricas
+    numerical_columns = df_sample.select_dtypes(include=['float64', 'int64']).columns.tolist()
+    categorical_columns = df_sample.select_dtypes(include=['object']).columns.tolist()
 
     df_info = f"Colunas: {list(df_sample.columns)}; Tipos: {df_sample.dtypes.to_dict()}"
     query = st.text_input("Faça sua pergunta de EDA:")
 
     if query:
-        st.info("🤖 Gerando código e executando automaticamente...")
+        st.info("🤖 Gerando análise objetiva...")
 
         # ----------------------
-        # VERIFICAÇÃO DE PERGUNTA COM PRINT AUTOMÁTICO
+        # DESCRIÇÃO DOS DADOS
         # ----------------------
-        if "tipo" in query.lower() or "dados" in query.lower() or "categoria" in query.lower():
-            prompt = f"""
-O dataframe `df` está carregado com {df_info}. Pergunta: {query}
-Identifique colunas numéricas e categóricas com base nos tipos de dados.
-Inclua no código linhas que exibam os resultados usando print(), assim:
-numerical_columns = df.select_dtypes(include=['float64', 'int64']).columns.tolist()
-categorical_columns = df.select_dtypes(include=['object']).columns.tolist()
-print("Colunas numéricas:", numerical_columns)
-print("Colunas categóricas:", categorical_columns)
-"""
+        if "tipo" in query.lower() or "categoria" in query.lower():
+            # Tipos de dados
+            result = f"Colunas numéricas: {numerical_columns}\nColunas categóricas: {categorical_columns}"
+
+        elif "distribuição" in query.lower():
+            # Distribuição das variáveis
+            result = ""
+            for col in numerical_columns:
+                counts, bins = np.histogram(df_sample[col].dropna(), bins=10)
+                result += f"\nColuna {col} - Contagem por bin: {list(counts)}"
+            for col in categorical_columns:
+                result += f"\nColuna {col} - Contagem por categoria:\n{df_sample[col].value_counts().to_dict()}"
+
+        elif "intervalo" in query.lower() or "mínimo" in query.lower() or "máximo" in query.lower():
+            # Intervalo das variáveis
+            result = df_sample[numerical_columns].agg(['min','max']).to_string()
+
+        elif "tendência central" in query.lower() or "média" in query.lower() or "mediana" in query.lower():
+            # Tendência central
+            result = df_sample[numerical_columns].agg(['mean','median']).to_string()
+
+        elif "variabilidade" in query.lower() or "desvio padrão" in query.lower() or "variância" in query.lower():
+            # Variabilidade
+            result = df_sample[numerical_columns].agg(['std','var']).to_string()
+
+        # ----------------------
+        # PADRÕES E TENDÊNCIAS
+        # ----------------------
+        elif "padrões" in query.lower() or "tendências temporais" in query.lower():
+            if 'Time' in df_sample.columns:
+                fig, ax = plt.subplots(figsize=(10,5))
+                ax.plot(df_sample['Time'], df_sample['Amount'])
+                ax.set_title('Tendência temporal de Amount')
+                ax.set_xlabel('Time')
+                ax.set_ylabel('Amount')
+                st.pyplot(fig)
+                result = "Gráfico de tendência temporal gerado."
+            else:
+                result = "Coluna 'Time' não encontrada. Não é possível analisar tendências temporais."
+
+        elif "valores mais frequentes" in query.lower() or "menos frequentes" in query.lower():
+            result = ""
+            for col in df_sample.columns:
+                result += f"\nColuna: {col}\nMais frequentes: {df_sample[col].value_counts().head(5).to_dict()}\nMenos frequentes: {df_sample[col].value_counts().tail(5).to_dict()}"
+
+        elif "clusters" in query.lower() or "agrupamentos" in query.lower():
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(df_sample[numerical_columns])
+            pca = PCA(n_components=2)
+            X_pca = pca.fit_transform(X_scaled)
+            kmeans = KMeans(n_clusters=3, random_state=42).fit(X_scaled)
+            fig, ax = plt.subplots()
+            ax.scatter(X_pca[:,0], X_pca[:,1], c=kmeans.labels_)
+            ax.set_title("Clusters PCA")
+            st.pyplot(fig)
+            result = "Clusters gerados usando PCA e KMeans."
+
+        # ----------------------
+        # DETECÇÃO DE ANOMALIAS
+        # ----------------------
+        elif "valores atípicos" in query.lower() or "outliers" in query.lower():
+            z_scores = np.abs(zscore(df_sample[numerical_columns]))
+            outliers_count = (z_scores > 3).sum(axis=0)
+            result = f"Outliers por coluna:\n{dict(zip(numerical_columns, outliers_count))}"
+
+        elif "afetam a análise" in query.lower():
+            z_scores = np.abs(zscore(df_sample[numerical_columns]))
+            df_no_outliers = df_sample[(z_scores < 3).all(axis=1)]
+            result = f"Antes:\n{df_sample[numerical_columns].describe().T}\n\nDepois (sem outliers):\n{df_no_outliers[numerical_columns].describe().T}"
+
+        elif "removidos" in query.lower() or "transformados" in query.lower() or "investigados" in query.lower():
+            result = "Recomenda-se: remover outliers extremos, transformar variáveis com log/sqrt ou investigar casos específicos."
+
+        # ----------------------
+        # RELAÇÕES ENTRE VARIÁVEIS
+        # ----------------------
+        elif "relacionadas" in query.lower() or "dispersão" in query.lower():
+            fig = sns.pairplot(df_sample[numerical_columns])
+            st.pyplot(fig)
+            result = "Pairplot gerado para analisar relações entre variáveis numéricas."
+
+        elif "correlação" in query.lower():
+            corr = df_sample[numerical_columns].corr()
+            fig, ax = plt.subplots(figsize=(12,8))
+            sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
+            st.pyplot(fig)
+            result = "Heatmap de correlação gerado."
+
+        elif "influência" in query.lower():
+            corr = df_sample[numerical_columns].corr().abs().sum().sort_values(ascending=False)
+            result = f"Variáveis com maior influência (soma das correlações absolutas):\n{corr.to_string()}"
+
         else:
-            prompt = f"""
-O dataframe `df` está carregado com {df_info}. Pergunta: {query}
-Analise apenas as colunas numéricas relevantes ({list(df_numeric.columns)}).
-Inclua gráficos, média, mediana, min, max, std e contagem de valores.
-"""
+            result = "Pergunta não reconhecida ou não implementada para análise objetiva."
 
-        code = generate_response(prompt, mode="code")
-        st.code(code, language="python")
-        result, img_b64_list = execute_code(code, df_sample)
         st.subheader("Resultado da Análise")
-        st.write(result)
-
-        if img_b64_list:
-            for img_b64 in img_b64_list:
-                st_version = st.__version__
-                kwargs = {}
-                if version.parse(st_version) >= version.parse("1.29.0"):
-                    kwargs["use_container_width"] = True
-                else:
-                    kwargs["use_column_width"] = True
-                st.image(base64.b64decode(img_b64), **kwargs)
-
+        st.text(result)
         st.session_state.history.append({"query": query, "result": result})
         save_history(st.session_state.history)
 
     st.markdown("---")
-
-    if st.button("🧠 Gerar Conclusões"):
-        with st.spinner("Analisando histórico..."):
-            history_txt = "\n".join([f"P: {h['query']}\nR: {h['result']}" for h in st.session_state.history])
-            concl = generate_response(f"Com base nestas interações: {history_txt}\nResuma as conclusões gerais sobre o dataset.", mode="text")
-        st.subheader("Conclusões do agente")
-        st.write(concl)
-        st.session_state.history.append({"query": "CONCLUSÕES", "result": concl})
-        save_history(st.session_state.history)
 
     if st.button("📄 Gerar Relatório PDF"):
         path = gerar_pdf(st.session_state.history)
@@ -230,16 +240,5 @@ Inclua gráficos, média, mediana, min, max, std e contagem de valores.
 
     st.markdown("### Visualizar parte do dataset")
     st.dataframe(df_sample.head(200))
-
-    st.markdown("### Ações rápidas pré-definidas")
-    if st.button("Resumo estatístico (describe)"):
-        st.write(df_numeric.describe().T)
-    if st.button("Contagem de classes (Class)"):
-        if "Class" in df_sample.columns:
-            st.write(df_sample['Class'].value_counts())
-            fig = px.histogram(df_sample, x='Class', title='Contagem por Classe')
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("A coluna 'Class' não foi encontrada no dataset.")
 else:
     st.info("💡 Carregue um CSV para começar.")
