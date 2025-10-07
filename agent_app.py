@@ -92,23 +92,23 @@ def gerar_conclusoes(df):
 
     return "\n".join(conclusions)
 
-# ===================== CORREÇÃO: GERAÇÃO DE PDF (SEM DOWNLOAD EXTERNO) =====================
+# ===================== CORREÇÃO: GERAÇÃO DE PDF =====================
 def gerar_pdf(hist, conclusoes=None):
     """
-    Gera PDF em memória (bytes) usando DejaVu/FreeSans se disponível no sistema.
-    Se não houver fonte Unicode disponível localmente, faz fallback convertendo
-    texto para latin-1 com 'replace' (evita UnicodeEncodeError).
+    Gera PDF em memória (bytes). Usa fonte Unicode local se disponível.
+    Se não houver fonte Unicode disponível localmente, faz fallback para latin-1 safe.
     """
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # caminhos locais comuns onde a DejaVu/FreeSans/Arial pode existir
+    # caminhos locais possíveis para fontes Unicode (não faz downloads)
     possible_font_paths = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
         "/usr/local/share/fonts/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
         "C:\\Windows\\Fonts\\DejaVuSans.ttf",
         "C:\\Windows\\Fonts\\arial.ttf",
     ]
@@ -122,49 +122,47 @@ def gerar_pdf(hist, conclusoes=None):
     use_unicode_font = False
     if font_path:
         try:
+            # registra duas famílias (normal + "bold") usando o mesmo arquivo TTF
             pdf.add_font("DejaVu", "", font_path, uni=True)
+            # registra uma família separada para "bold" (mesmo TTF) para evitar usar style 'B'
+            pdf.add_font("DejaVu-Bold", "", font_path, uni=True)
             use_unicode_font = True
-            pdf.set_font("DejaVu", "", 16)
         except Exception:
             use_unicode_font = False
 
-    if not use_unicode_font:
-        # fallback para fonte padrão (não-unicode); usaremos latin-1 safety
+    # Cabeçalho
+    if use_unicode_font:
+        pdf.set_font("DejaVu", "", 16)
+    else:
         pdf.set_font("Arial", "B", 16)
-
     pdf.cell(0, 10, "Agentes Autônomos – Relatório da Atividade Extra", ln=True, align="C")
     pdf.ln(10)
 
-    # função auxiliar para escrever texto com fallback
-    def write_text(text, bold=False):
-        if not use_unicode_font:
-            safe = str(text).encode('latin-1', 'replace').decode('latin-1')
+    # helper para escrever texto com fallback de encoding e família
+    def write_text(text, bold=False, size=11):
+        if use_unicode_font:
+            family = "DejaVu-Bold" if bold else "DejaVu"
+            pdf.set_font(family, "", size)
+            safe_text = str(text)
         else:
-            safe = str(text)
-        if bold:
-            if use_unicode_font:
-                pdf.set_font("DejaVu", "B", 11)
-            else:
-                pdf.set_font("Arial", "B", 12)
-        else:
-            if use_unicode_font:
-                pdf.set_font("DejaVu", "", 11)
-            else:
-                pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(0, 7, safe)
+            style = "B" if bold else ""
+            pdf.set_font("Arial", style, size)
+            # garante que caracteres problemáticos não explodam o FPDF
+            safe_text = str(text).encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 7, safe_text)
 
-    # Escreve histórico de perguntas/respostas
+    # escreve histórico de perguntas e respostas
     for h in hist:
-        write_text(f"Pergunta: {h['query']}", bold=True)
-        write_text(f"Resposta: {h['result'][:700]}")
+        write_text(f"Pergunta: {h['query']}", bold=True, size=12)
+        write_text(f"Resposta: {h['result'][:700]}", bold=False, size=11)
         pdf.ln(4)
 
     if conclusoes:
-        write_text("Pergunta: Conclusões do agente", bold=True)
-        write_text(conclusoes)
+        write_text("Pergunta: Conclusões do agente", bold=True, size=12)
+        write_text(conclusoes, bold=False, size=11)
         pdf.ln(4)
 
-    # Gera PDF em memória; encode for compatibility (latin-1) com errors='ignore' para segurança
+    # Gera PDF em memória e retorna bytes (encode latin-1 para compatibilidade com FPDF internamente)
     pdf_bytes = pdf.output(dest='S').encode('latin-1', errors='ignore')
     return pdf_bytes
 
