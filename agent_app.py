@@ -245,21 +245,29 @@ if uploaded_file:
                 result += f"\nColuna: {col}\nMais frequentes: {vc.head(5).to_dict()}\nMenos frequentes: {vc.tail(5).to_dict()}"
 
         elif "clusters" in query_lower or "agrupamentos" in query_lower:
-            if len(df_sample) > 10000:
-                result = "Dataset grande demais para clusterização; reduza a amostra."
+            if len(df_sample) > 20000:
+                st.warning(f"O dataset tem {len(df_sample):,} linhas. Usando amostra de 10.000 para clusterização.")
+                df_cluster = df_sample.sample(10000, random_state=42)
             else:
+                df_cluster = df_sample.copy()
+                
+            try:     
                 scaler = StandardScaler()
                 X_scaled = scaler.fit_transform(df_sample[numerical_columns])
                 pca = PCA(n_components=2)
                 X_pca = pca.fit_transform(X_scaled)
                 kmeans = KMeans(n_clusters=3, random_state=42).fit(X_scaled)
-                fig, ax = plt.subplots()
+                
+                fig, ax = plt.subplots(figsize=(8,6))
                 scatter = ax.scatter(X_pca[:,0], X_pca[:,1], c=kmeans.labels_, cmap='viridis', alpha=0.6)
-                ax.set_title("Clusters PCA")
+                ax.set_title("Clusters (amostra reduzida via PCA + KMeans)")
                 st.pyplot(fig)
                 plt.close(fig)
                 gc.collect()
-                result = "Clusters gerados usando PCA e KMeans."
+                result = f"Clusters gerados com amostra de {len(df_cluster):,} linhas."
+                
+            except Exception as e:
+               result = f"Erro ao gerar clusters: {e}"
 
         elif "valores atípicos" in query_lower or "outliers" in query_lower:
             z_scores = np.abs(zscore(df_sample[numerical_columns]))
