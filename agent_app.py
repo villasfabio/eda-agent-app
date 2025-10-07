@@ -17,7 +17,7 @@ from sklearn.cluster import KMeans
 from scipy.stats import zscore
 from fpdf import FPDF
 from dotenv import load_dotenv
-import os, json, gc, tempfile, urllib.request
+import os, json, gc
 
 # ===================== CONFIGURAÇÃO INICIAL =====================
 load_dotenv()
@@ -92,38 +92,79 @@ def gerar_conclusoes(df):
 
     return "\n".join(conclusions)
 
-# ===================== CORREÇÃO: GERAÇÃO DE PDF =====================
+# ===================== CORREÇÃO: GERAÇÃO DE PDF (SEM DOWNLOAD EXTERNO) =====================
 def gerar_pdf(hist, conclusoes=None):
-    # Fonte Unicode compatível (DejaVuSans)
-    font_path = os.path.join(tempfile.gettempdir(), "DejaVuSans.ttf")
-    if not os.path.exists(font_path):
-        url = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf"
-        urllib.request.urlretrieve(url, font_path)
-
+    """
+    Gera PDF em memória (bytes) usando DejaVu/FreeSans se disponível no sistema.
+    Se não houver fonte Unicode disponível localmente, faz fallback convertendo
+    texto para latin-1 com 'replace' (evita UnicodeEncodeError).
+    """
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_font("DejaVu", "", font_path, uni=True)
-    pdf.set_font("DejaVu", "", 16)
+
+    # caminhos locais comuns onde a DejaVu/FreeSans/Arial pode existir
+    possible_font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/usr/local/share/fonts/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "C:\\Windows\\Fonts\\DejaVuSans.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+    ]
+
+    font_path = None
+    for p in possible_font_paths:
+        if os.path.exists(p):
+            font_path = p
+            break
+
+    use_unicode_font = False
+    if font_path:
+        try:
+            pdf.add_font("DejaVu", "", font_path, uni=True)
+            use_unicode_font = True
+            pdf.set_font("DejaVu", "", 16)
+        except Exception:
+            use_unicode_font = False
+
+    if not use_unicode_font:
+        # fallback para fonte padrão (não-unicode); usaremos latin-1 safety
+        pdf.set_font("Arial", "B", 16)
+
     pdf.cell(0, 10, "Agentes Autônomos – Relatório da Atividade Extra", ln=True, align="C")
     pdf.ln(10)
-    pdf.set_font("DejaVu", "", 11)
 
+    # função auxiliar para escrever texto com fallback
+    def write_text(text, bold=False):
+        if not use_unicode_font:
+            safe = str(text).encode('latin-1', 'replace').decode('latin-1')
+        else:
+            safe = str(text)
+        if bold:
+            if use_unicode_font:
+                pdf.set_font("DejaVu", "B", 11)
+            else:
+                pdf.set_font("Arial", "B", 12)
+        else:
+            if use_unicode_font:
+                pdf.set_font("DejaVu", "", 11)
+            else:
+                pdf.set_font("Arial", "", 11)
+        pdf.multi_cell(0, 7, safe)
+
+    # Escreve histórico de perguntas/respostas
     for h in hist:
-        pdf.set_font("DejaVu", "B", 11)
-        pdf.multi_cell(0, 7, f"Pergunta: {h['query']}")
-        pdf.set_font("DejaVu", "", 11)
-        pdf.multi_cell(0, 7, f"Resposta: {h['result'][:700]}")
+        write_text(f"Pergunta: {h['query']}", bold=True)
+        write_text(f"Resposta: {h['result'][:700]}")
         pdf.ln(4)
 
     if conclusoes:
-        pdf.set_font("DejaVu", "B", 11)
-        pdf.multi_cell(0, 7, "Pergunta: Conclusões do agente")
-        pdf.set_font("DejaVu", "", 11)
-        pdf.multi_cell(0, 7, conclusoes)
+        write_text("Pergunta: Conclusões do agente", bold=True)
+        write_text(conclusoes)
         pdf.ln(4)
 
-    # Gera PDF como bytes (UTF-8 seguro)
+    # Gera PDF em memória; encode for compatibility (latin-1) com errors='ignore' para segurança
     pdf_bytes = pdf.output(dest='S').encode('latin-1', errors='ignore')
     return pdf_bytes
 
