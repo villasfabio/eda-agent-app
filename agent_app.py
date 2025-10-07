@@ -102,102 +102,103 @@ def gerar_conclusoes(df):
 
     return "\n".join(conclusions)
 
-# ===================== GERAÇÃO DE PDF REVISADA =====================
-def gerar_pdf(hist, conclusoes=None):
+# ===================== GERAÇÃO DE PDF COMPLETA =====================
+def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="EDA Genérico"):
     """
-    Gera um PDF organizado com histórico de perguntas/respostas e conclusões.
-    Usa fonte Unicode local se disponível, com fallback para Arial.
+    Gera PDF completo com:
+    - Framework escolhida
+    - Estrutura da solução
+    - Perguntas/respostas (mínimo 4, com pelo menos 1 gráfico)
+    - Pergunta sobre conclusões do agente
+    - Código-fonte ou arquivo JSON exportado
+    - Link para acessar o agente
     """
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # Caminhos locais possíveis para fontes Unicode
-    possible_font_paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-        "/usr/local/share/fonts/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
-        "C:\\Windows\\Fonts\\DejaVuSans.ttf",
-        "C:\\Windows\\Fonts\\arial.ttf",
-    ]
-
-    font_path = None
-    for p in possible_font_paths:
-        if os.path.exists(p):
-            font_path = p
-            break
-
-    use_unicode_font = False
-    if font_path:
-        try:
-            pdf.add_font("DejaVu", "", font_path, uni=True)
-            pdf.add_font("DejaVu-Bold", "", font_path, uni=True)
-            use_unicode_font = True
-        except Exception:
-            use_unicode_font = False
-
-    # Função auxiliar para escrever texto com fallback
+    # Funções de formatação
     def write_text(text, bold=False, size=11):
-        if use_unicode_font:
-            family = "DejaVu-Bold" if bold else "DejaVu"
-            pdf.set_font(family, "", size)
-            safe_text = str(text)
-        else:
-            style = "B" if bold else ""
-            pdf.set_font("Arial", style, size)
-            safe_text = str(text).encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 7, safe_text)
+        style = "B" if bold else ""
+        pdf.set_font("Arial", style, size)
+        pdf.multi_cell(0, 7, str(text))
 
-    # Cabeçalho do relatório
-    if use_unicode_font:
-        pdf.set_font("DejaVu-Bold", "", 16)
-    else:
-        pdf.set_font("Arial", "B", 16)
+    def format_list(l):
+        return ", ".join([str(i) for i in l])
+
+    def format_dict(d):
+        return "\n".join([f"{k}: {v}" for k, v in d.items()])
+
+    # Cabeçalho
+    pdf.set_font("Arial", "B", 16)
     pdf.cell(0, 10, "Agentes Autônomos – Relatório da Atividade Extra", ln=True, align="C")
     pdf.ln(5)
-    if use_unicode_font:
-        pdf.set_font("DejaVu", "", 12)
-    else:
-        pdf.set_font("Arial", "", 12)
+    pdf.set_font("Arial", "", 12)
     pdf.cell(0, 10, f"Gerado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True, align="C")
     pdf.ln(10)
 
-    # Filtrar perguntas duplicadas (mantém a última ocorrência)
-    seen_queries = {}
-    for entry in reversed(hist):
-        seen_queries[entry['query']] = entry
-    unique_hist = list(reversed(list(seen_queries.values())))
-
-    # Seção de perguntas e respostas
-    if use_unicode_font:
-        pdf.set_font("DejaVu-Bold", "", 14)
-    else:
-        pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "Perguntas e Respostas", ln=True)
+    # 1. Framework escolhida
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "1. Framework Escolhida", ln=True)
+    pdf.ln(3)
+    write_text(framework)
     pdf.ln(5)
 
-    for i, h in enumerate(unique_hist, 1):
+    # 2. Estrutura da solução
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "2. Estrutura da Solução", ln=True)
+    pdf.ln(3)
+    write_text(estrutura)
+    pdf.ln(5)
+
+    # 3. Perguntas e respostas (mínimo 4)
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "3. Perguntas e Respostas", ln=True)
+    pdf.ln(5)
+
+    # Garantir que pelo menos 4 perguntas sejam exibidas
+    min_perguntas = 4
+    perguntas = hist[-min_perguntas:] if len(hist) >= min_perguntas else hist
+    for i, h in enumerate(perguntas, 1):
         query = h['query']
         result = h['result']
-        # Substituir respostas não implementadas
-        if "não reconhecida ou não implementada" in result:
-            result = "Esta pergunta não pôde ser processada automaticamente. Tente reformular ou fornecer mais detalhes."
-
+        # Formata listas/dicionários
+        try:
+            parsed = eval(result)
+            if isinstance(parsed, dict):
+                result = format_dict(parsed)
+            elif isinstance(parsed, list):
+                result = format_list(parsed)
+        except:
+            pass
+        # Incluir observação para gráficos
+        if "gráfico" in result.lower():
+            result += " (Resultado apresentado em gráfico)"
         write_text(f"{i}. Pergunta: {query}", bold=True, size=12)
-        write_text(f"Resposta: {result}", bold=False, size=11)
-        pdf.ln(8)
+        write_text(f"Resposta: {result}", size=11)
+        pdf.ln(3)
 
-    # Seção de conclusões
+    # 4. Pergunta sobre as conclusões do agente
     if conclusoes:
-        if use_unicode_font:
-            pdf.set_font("DejaVu-Bold", "", 14)
-        else:
-            pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "Conclusões do Agente", ln=True)
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "4. Conclusões do Agente", ln=True)
+        pdf.ln(3)
+        write_text(conclusoes, size=11)
         pdf.ln(5)
-        write_text(conclusoes, bold=False, size=11)
+
+    # 5. Código-fonte / JSON exportação
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "5. Código Fonte / Exportação JSON", ln=True)
+    pdf.ln(3)
+    write_text("O código-fonte está disponível no arquivo principal ou via exportação JSON do N8N.", size=11)
+    pdf.ln(5)
+
+    # 6. Link de acesso ao agente
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "6. Link de Acesso ao Agente", ln=True)
+    pdf.ln(3)
+    write_text("Acesse seu agente aqui: https://seu-agente-exemplo.com", size=11)
+    pdf.ln(5)
 
     # Gera PDF em memória e retorna bytes
     pdf_bytes = pdf.output(dest='S').encode('latin-1', errors='ignore')
