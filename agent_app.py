@@ -52,7 +52,6 @@ if "history" not in st.session_state:
 @st.cache_data(show_spinner=False)
 def load_csv(file):
     df = pd.read_csv(file)
-    # Garantir que colunas numéricas não sejam interpretadas como datas
     for col in df.columns:
         try:
             df[col] = pd.to_numeric(df[col], errors='ignore')
@@ -101,8 +100,6 @@ def execute_code(code, df):
 
     text_output = output.getvalue().strip()
 
-    # Captura gráficos Matplotlib gerados e transforma em base64
-    fig_list = [fig for fig_num, fig in enumerate(plt.get_fignums())]
     for fig_num in plt.get_fignums():
         buf = io.BytesIO()
         plt.figure(fig_num).savefig(buf, format="png", bbox_inches="tight")
@@ -166,13 +163,19 @@ if uploaded_file:
     MAX_SAMPLE = 150000
     df_sample = df.sample(MAX_SAMPLE, random_state=42) if len(df) > MAX_SAMPLE else df
 
+    # Seleciona colunas numéricas relevantes automaticamente
+    excluded_cols = ['Time', 'Class']
+    numeric_cols = df_sample.select_dtypes(include='number').columns.difference(excluded_cols)
+    df_numeric = df_sample[numeric_cols]
+
     df_info = f"Colunas: {list(df_sample.columns)}; Tipos: {df_sample.dtypes.to_dict()}"
     query = st.text_input("Faça sua pergunta de EDA:")
 
     if query:
         st.info("🤖 Gerando código e executando automaticamente...")
         prompt = f"O dataframe `df` está carregado com {df_info}. Pergunta: {query}\n" \
-                 f"Além de gerar gráficos, inclua prints com resumo estatístico (média, mediana, min, max, std) e contagem de valores."
+                 f"Analise apenas as colunas numéricas relevantes ({list(df_numeric.columns)}). " \
+                 f"Inclua gráficos, média, mediana, min, max, std e contagem de valores."
         code = generate_response(prompt, mode="code")
         st.code(code, language="python")
         result, img_b64_list = execute_code(code, df_sample)
@@ -205,7 +208,7 @@ if uploaded_file:
 
     st.markdown("### Ações rápidas pré-definidas")
     if st.button("Resumo estatístico (describe)"):
-        st.write(df_sample.describe(include='all').T)
+        st.write(df_numeric.describe().T)
     if st.button("Contagem de classes (Class)"):
         if "Class" in df_sample.columns:
             st.write(df_sample['Class'].value_counts())
