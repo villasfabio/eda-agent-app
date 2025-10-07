@@ -117,14 +117,20 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     pdf = FPDF()
     pdf.add_page()
     
-    # Adiciona fonte Unicode
-    pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+    # Tenta adicionar a fonte DejaVu, com fallback para Helvetica
+    font_name = "Helvetica"  # Fallback padrão
+    try:
+        pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+        font_name = "DejaVu"
+    except RuntimeError:
+        st.warning("Fonte DejaVuSans.ttf não encontrada. Usando Helvetica como fallback.")
+
     pdf.set_auto_page_break(auto=True, margin=15)
 
     # Funções de formatação
     def write_text(text, bold=False, size=11):
         style = "B" if bold else ""
-        pdf.set_font("DejaVu", style, size)
+        pdf.set_font(font_name, style, size)
         pdf.multi_cell(0, 7, str(text))
 
     def format_list(l):
@@ -134,29 +140,29 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
         return "\n".join([f"{k}: {v}" for k, v in d.items()])
 
     # Cabeçalho
-    pdf.set_font("DejaVu", "B", 16)
+    pdf.set_font(font_name, "B", 16)
     pdf.cell(0, 10, "Agentes Autônomos – Relatório da Atividade Extra", ln=True, align="C")
     pdf.ln(5)
-    pdf.set_font("DejaVu", "", 12)
+    pdf.set_font(font_name, "", 12)
     pdf.cell(0, 10, f"Gerado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True, align="C")
     pdf.ln(10)
 
     # 1. Framework escolhida
-    pdf.set_font("DejaVu", "B", 14)
+    pdf.set_font(font_name, "B", 14)
     pdf.cell(0, 10, "1. Framework Escolhida", ln=True)
     pdf.ln(3)
     write_text(framework)
     pdf.ln(5)
 
     # 2. Estrutura da solução
-    pdf.set_font("DejaVu", "B", 14)
+    pdf.set_font(font_name, "B", 14)
     pdf.cell(0, 10, "2. Estrutura da Solução", ln=True)
     pdf.ln(3)
     write_text(estrutura)
     pdf.ln(5)
 
     # 3. Perguntas e respostas (mínimo 4)
-    pdf.set_font("DejaVu", "B", 14)
+    pdf.set_font(font_name, "B", 14)
     pdf.cell(0, 10, "3. Perguntas e Respostas", ln=True)
     pdf.ln(5)
 
@@ -181,21 +187,21 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
 
     # 4. Conclusões do agente
     if conclusoes:
-        pdf.set_font("DejaVu", "B", 14)
+        pdf.set_font(font_name, "B", 14)
         pdf.cell(0, 10, "4. Conclusões do Agente", ln=True)
         pdf.ln(3)
         write_text(conclusoes, size=11)
         pdf.ln(5)
 
     # 5. Código-fonte / JSON exportação
-    pdf.set_font("DejaVu", "B", 14)
+    pdf.set_font(font_name, "B", 14)
     pdf.cell(0, 10, "5. Código Fonte / Exportação JSON", ln=True)
     pdf.ln(3)
     write_text("O código-fonte está disponível no arquivo principal ou via exportação JSON do N8N.", size=11)
     pdf.ln(5)
 
     # 6. Link de acesso ao agente
-    pdf.set_font("DejaVu", "B", 14)
+    pdf.set_font(font_name, "B", 14)
     pdf.cell(0, 10, "6. Link de Acesso ao Agente", ln=True)
     pdf.ln(3)
     write_text("Acesse seu agente aqui: https://seu-agente-exemplo.com", size=11)
