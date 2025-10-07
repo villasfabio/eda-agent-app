@@ -4,7 +4,6 @@ Created on Sun Oct  5 13:22:38 2025
 
 @author: villa
 """
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -42,6 +41,17 @@ def save_history(hist):
     with open(HISTORY_PATH, "w", encoding="utf-8") as f:
         json.dump(hist, f, ensure_ascii=False, indent=2)
     return hist
+
+def clear_history():
+    """Limpa o histórico de perguntas e respostas."""
+    st.session_state.history = []
+    try:
+        with open(HISTORY_PATH, "w", encoding="utf-8") as f:
+            json.dump([], f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        st.error(f"Erro ao limpar o histórico: {e}")
+        return False
 
 if "history" not in st.session_state:
     st.session_state.history = load_history()
@@ -200,6 +210,7 @@ st.sidebar.markdown("""
 2. Faça perguntas sobre o dataset  
 3. O agente responde com análise objetiva  
 4. Gere conclusões e exporte o PDF  
+5. Use o botão abaixo para limpar o histórico de perguntas
 """)
 
 uploaded_file = st.file_uploader("📂 Carregue o CSV", type="csv")
@@ -213,6 +224,13 @@ if uploaded_file:
 
     numerical_columns = df_sample.select_dtypes(include=['float64','int64']).columns.tolist()
     categorical_columns = df_sample.select_dtypes(include=['object']).columns.tolist()
+
+    # Botão para limpar o histórico
+    if st.button("🗑️ Limpar Histórico de Perguntas"):
+        if clear_history():
+            st.success("Histórico de perguntas limpo com sucesso!")
+        else:
+            st.error("Falha ao limpar o histórico. Verifique as permissões do arquivo.")
 
     query = st.text_input("Faça sua pergunta de EDA:")
 
