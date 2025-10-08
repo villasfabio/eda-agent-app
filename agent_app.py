@@ -141,18 +141,50 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
 
     def write_table(data):
         lines = data.strip().split("\n")
-        if lines:
-            headers = lines[0].split()
-            pdf.set_font("Arial", "B", 10)
-            for header in headers:
-                pdf.cell(15, 7, header, border=1, align="C")
-            pdf.ln()
-            pdf.set_font("Arial", "", 10)
-            for line in lines[1:]:
-                values = line.split()
-                for value in values:
-                    pdf.cell(15, 7, value, border=1, align="C")
-                pdf.ln()
+        if not lines:
+            return
+        # Extrai cabeçalhos (primeira linha não vazia)
+        headers = []
+        for line in lines:
+            parts = line.split()
+            if any(part in parts for part in ["min", "max"]):
+                break
+            headers.extend(parts)
+        if not headers:
+            return
+        # Determina o número de colunas
+        num_cols = len(headers)
+        col_width = 15  # Largura fixa para cada coluna
+
+        # Escreve cabeçalhos
+        pdf.set_font("Arial", "B", 10)
+        for header in headers:
+            pdf.cell(col_width, 7, header, border=1, align="C")
+        pdf.ln()
+
+        # Processa valores de min e max
+        min_values = []
+        max_values = []
+        current_line = []
+        for line in lines:
+            parts = line.split()
+            if "min" in parts:
+                min_values = parts[parts.index("min") + 1:]
+            elif "max" in parts:
+                max_values = parts[parts.index("max") + 1:]
+            else:
+                current_line.extend(parts)
+
+        # Combina valores em uma lista única, alinhando com os cabeçalhos
+        all_values = min_values + max_values
+        if len(all_values) > num_cols:
+            all_values = all_values[:num_cols]  # Limita ao número de colunas
+
+        # Escreve linha de min
+        pdf.set_font("Arial", "", 10)
+        for value in all_values[:num_cols]:
+            pdf.cell(col_width, 7, value, border=1, align="C")
+        pdf.ln()
 
     # Cabeçalho
     pdf.set_font("Arial", "B", 16)
