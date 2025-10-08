@@ -108,21 +108,13 @@ def gerar_conclusoes(df, history):
     return "\n".join(conclusions)
 
 # ===================== GERAÇÃO DE PDF COMPLETA =====================
+# ... (código anterior até gerar_pdf)
+
 def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="EDA Genérico"):
-    """
-    Gera PDF completo com:
-    - Framework escolhida
-    - Estrutura da solução
-    - Perguntas/respostas (mínimo 4, com pelo menos 1 gráfico)
-    - Pergunta sobre conclusões do agente
-    - Código-fonte ou arquivo JSON exportado
-    - Link para acessar o agente
-    """
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # Funções de formatação usando Arial como fonte padrão
     def write_text(text, bold=False, size=11, align="L"):
         style = "B" if bold else ""
         pdf.set_font("Arial", style, size)
@@ -149,12 +141,10 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
         headers = lines[0].split()
         num_cols = len(headers)
         col_width = max(15, 90 // num_cols)
-
         pdf.set_font("Arial", "B", 10)
         for header in headers:
             pdf.cell(col_width, 7, header, border=1, align="C")
         pdf.ln()
-
         pdf.set_font("Arial", "", 10)
         min_max_data = []
         for line in lines[1:]:
@@ -210,9 +200,7 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
         result = h['result']
         try:
             parsed = eval(result)
-            if isinstance(parsed, dict) and "outliers" in query.lower():
-                result = "\n".join([f"{k}: {v}" for k, v in parsed.items()])
-            elif isinstance(parsed, dict):
+            if isinstance(parsed, dict):
                 result = "\n".join([f"{k}: {v}" for k, v in parsed.items()])
             elif isinstance(parsed, list):
                 result = ", ".join(str(i) for i in parsed)
@@ -223,8 +211,9 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
         write_text(f"{i}. Pergunta: {query}", bold=True, size=12)
         if "min" in result and "max" in result:
             write_table(result)
-        elif "clusters" in query.lower() or "gráfico" in result.lower():
-            write_text(f"Resposta: {result} (Gráfico de clusters disponível na interface)", size=10)
+        elif "clusters" in query.lower() or "gráfico" in result.lower() or "distribuição" in query.lower():
+            result += " (Gráfico disponível na interface)" if "gráfico" not in result.lower() else ""
+            write_text(f"Resposta: {result}", size=10)
         else:
             write_text(f"Resposta: {result}", size=10)
         pdf.ln(3)
@@ -233,8 +222,6 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     if conclusoes:
         pdf.set_font("Arial", "B", 14)
         pdf.cell(0, 10, "4. Conclusoes do Agente", ln=True)
-        pdf.ln(3)
-        write_text("Pergunta: Quais conclusões podemos extrair do dataset?", bold=True, size=12)
         pdf.ln(3)
         conclusoes_lines = [line for line in conclusoes.split("\n") if line.strip()]
         for line in conclusoes_lines:
@@ -252,12 +239,13 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, "6. Link de Acesso ao Agente", ln=True)
     pdf.ln(3)
-    write_text("Acesse seu agente aqui: https://seu-agente-exemplo.com", size=11)
+    write_text("Acesse seu agente aqui: eda-agent-app-fabiovilas1980.streamlit.app", size=11)
     pdf.ln(5)
 
-    # Gera PDF em memória e retorna bytes
     pdf_bytes = pdf.output(dest='S').encode('latin-1', errors='ignore')
     return pdf_bytes
+
+# ... (código restante)
 
 # ===================== INTERFACE PRINCIPAL =====================
 st.sidebar.header("📘 Instruções")
