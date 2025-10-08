@@ -22,7 +22,7 @@ from datetime import datetime
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 st.set_page_config(page_title="Agente EDA Genérico", layout="wide")
-st.title("🤖 gente de Análise Exploratória de Dados para CSV")
+st.title("🤖 Agente de Análise Exploratória de Dados para CSV")
 
 HISTORY_PATH = "agent_history.json"
 
