@@ -119,18 +119,30 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     pdf.set_auto_page_break(auto=True, margin=15)
 
     # Funções de formatação usando Arial como fonte padrão
-    def write_text(text, bold=False, size=11):
+    def write_text(text, bold=False, size=11, align="L"):
         style = "B" if bold else ""
         pdf.set_font("Arial", style, size)
-        # Substitui caracteres especiais por equivalentes ASCII
-        safe_text = text.replace("–", "-").replace("—", "-").encode('ascii', 'replace').decode('ascii')
-        pdf.multi_cell(0, 7, safe_text)
+        # Converte todo o texto para ASCII seguro, substituindo caracteres especiais
+        safe_text = (
+            text.replace("–", "-")
+            .replace("—", "-")
+            .replace("á", "a")
+            .replace("ã", "a")
+            .replace("é", "e")
+            .replace("í", "i")
+            .replace("ó", "o")
+            .replace("õ", "o")
+            .replace("ú", "u")
+            .replace("ç", "c")
+            .encode('ascii', 'replace')
+            .decode('ascii')
+        )
+        pdf.multi_cell(0, 7, safe_text, align=align)
 
-    def format_list(l):
-        return ", ".join([str(i) for i in l])
-
-    def format_dict(d):
-        return "\n".join([f"{k}: {v}" for k, v in d.items()])
+    def format_table(data):
+        lines = data.split("\n")
+        for line in lines:
+            write_text(line.strip(), size=10)
 
     # Cabeçalho
     pdf.set_font("Arial", "B", 16)
@@ -160,7 +172,15 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     pdf.ln(5)
 
     min_perguntas = 4
-    perguntas = hist[-min_perguntas:] if len(hist) >= min_perguntas else hist
+    # Remove duplicatas do histórico com base na pergunta
+    unique_hist = []
+    seen_queries = set()
+    for h in reversed(hist):
+        if h['query'] not in seen_queries:
+            seen_queries.add(h['query'])
+            unique_hist.insert(0, h)
+    perguntas = unique_hist[-min_perguntas:] if len(unique_hist) >= min_perguntas else unique_hist
+
     for i, h in enumerate(perguntas, 1):
         query = h['query']
         result = h['result']
@@ -170,12 +190,14 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
                 result = format_dict(parsed)
             elif isinstance(parsed, list):
                 result = format_list(parsed)
+            elif isinstance(parsed, str) and "min" in parsed and "max" in parsed:
+                result = result.replace("\n", " ").strip()  # Compacta a tabela em uma linha
         except:
             pass
         if "gráfico" in result.lower():
             result += " (Resultado apresentado em grafico)"
         write_text(f"{i}. Pergunta: {query}", bold=True, size=12)
-        write_text(f"Resposta: {result}", size=11)
+        write_text(f"Resposta: {result}", size=10)
         pdf.ln(3)
 
     # 4. Conclusões do agente
@@ -203,6 +225,12 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     # Gera PDF em memória e retorna bytes
     pdf_bytes = pdf.output(dest='S').encode('latin-1', errors='ignore')
     return pdf_bytes
+
+def format_list(l):
+    return ", ".join([str(i) for i in l])
+
+def format_dict(d):
+    return "\n".join([f"{k}: {v}" for k, v in d.items()])
 
 
 # ===================== INTERFACE PRINCIPAL =====================
