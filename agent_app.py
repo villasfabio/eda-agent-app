@@ -122,7 +122,6 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     def write_text(text, bold=False, size=11, align="L"):
         style = "B" if bold else ""
         pdf.set_font("Arial", style, size)
-        # Converte todo o texto para ASCII seguro, substituindo caracteres especiais
         safe_text = (
             text.replace("–", "-")
             .replace("—", "-")
@@ -140,21 +139,13 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
         pdf.multi_cell(0, 7, safe_text, align=align)
 
     def write_table(data):
-        lines = data.strip().split("\n")
+        lines = [line for line in data.strip().split("\n") if line.strip()]
         if not lines:
             return
-        # Extrai cabeçalhos (primeira linha não vazia)
-        headers = []
-        for line in lines:
-            parts = line.split()
-            if any(part in parts for part in ["min", "max"]):
-                break
-            headers.extend(parts)
-        if not headers:
-            return
-        # Determina o número de colunas
+        # Extrai cabeçalhos
+        headers = lines[0].split()
         num_cols = len(headers)
-        col_width = 15  # Largura fixa para cada coluna
+        col_width = max(15, 90 // num_cols)  # Ajusta largura com base no número de colunas
 
         # Escreve cabeçalhos
         pdf.set_font("Arial", "B", 10)
@@ -162,29 +153,24 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
             pdf.cell(col_width, 7, header, border=1, align="C")
         pdf.ln()
 
-        # Processa valores de min e max
-        min_values = []
-        max_values = []
-        current_line = []
-        for line in lines:
+        # Extrai valores de min e max
+        min_max_data = []
+        for line in lines[1:]:
             parts = line.split()
             if "min" in parts:
-                min_values = parts[parts.index("min") + 1:]
+                min_max_data.append(("min", parts[parts.index("min") + 1:]))
             elif "max" in parts:
-                max_values = parts[parts.index("max") + 1:]
-            else:
-                current_line.extend(parts)
+                min_max_data.append(("max", parts[parts.index("max") + 1:]))
+        if not min_max_data:
+            return
 
-        # Combina valores em uma lista única, alinhando com os cabeçalhos
-        all_values = min_values + max_values
-        if len(all_values) > num_cols:
-            all_values = all_values[:num_cols]  # Limita ao número de colunas
-
-        # Escreve linha de min
+        # Escreve valores, alinhando com o número de colunas
         pdf.set_font("Arial", "", 10)
-        for value in all_values[:num_cols]:
-            pdf.cell(col_width, 7, value, border=1, align="C")
-        pdf.ln()
+        for label, values in min_max_data:
+            pdf.cell(col_width, 7, label, border=1, align="C")
+            for i, value in enumerate(values[:num_cols - 1]):  # -1 para o label
+                pdf.cell(col_width, 7, value, border=1, align="C")
+            pdf.ln()
 
     # Cabeçalho
     pdf.set_font("Arial", "B", 16)
@@ -232,14 +218,14 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
             elif isinstance(parsed, list):
                 result = ", ".join(str(i) for i in parsed)
             elif isinstance(parsed, str) and "min" in parsed and "max" in parsed:
-                result = result.strip()  # Mantém a formatação original da tabela
+                result = result.strip()
         except:
             pass
-        if "gráfico" in result.lower():
-            result += " (Resultado apresentado em grafico)"
         write_text(f"{i}. Pergunta: {query}", bold=True, size=12)
         if "min" in result and "max" in result:
             write_table(result)
+        elif "clusters" in query.lower() or "gráfico" in result.lower():
+            write_text(f"Resposta: {result} (Gráfico de clusters disponível na interface)", size=10)
         else:
             write_text(f"Resposta: {result}", size=10)
         pdf.ln(3)
@@ -249,7 +235,7 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
         pdf.set_font("Arial", "B", 14)
         pdf.cell(0, 10, "4. Conclusoes do Agente", ln=True)
         pdf.ln(3)
-        conclusoes_lines = conclusoes.split("\n")
+        conclusoes_lines = [line for line in conclusoes.split("\n") if line.strip()]
         for line in conclusoes_lines:
             write_text(line, size=11)
         pdf.ln(5)
