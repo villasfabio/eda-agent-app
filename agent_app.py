@@ -104,7 +104,7 @@ def gerar_conclusoes(df):
 
 # ===================== GERAÇÃO DE PDF COMPLETA =====================
 # ===================== GERAÇÃO DE PDF COMPLETA =====================
-def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="EDA Genérico"):
+def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="EDA Generico"):
     """
     Gera PDF completo com:
     - Framework escolhida
@@ -122,7 +122,7 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     def write_text(text, bold=False, size=11):
         style = "B" if bold else ""
         pdf.set_font("Arial", style, size)
-        # Substitui caracteres especiais por equivalentes ASCII para evitar erros de codificação
+        # Substitui caracteres especiais por equivalentes ASCII
         safe_text = text.replace("–", "-").replace("—", "-").encode('ascii', 'replace').decode('ascii')
         pdf.multi_cell(0, 7, safe_text)
 
@@ -134,7 +134,7 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
 
     # Cabeçalho
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Agentes Autonomos – Relatorio da Atividade Extra", ln=True, align="C")
+    pdf.cell(0, 10, "Agentes Autonomos - Relatorio da Atividade Extra", ln=True, align="C")
     pdf.ln(5)
     pdf.set_font("Arial", "", 12)
     pdf.cell(0, 10, f"Gerado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True, align="C")
@@ -149,7 +149,7 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
 
     # 2. Estrutura da solução
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "2. Estrutura da Solução", ln=True)
+    pdf.cell(0, 10, "2. Estrutura da Solucao", ln=True)
     pdf.ln(3)
     write_text(estrutura)
     pdf.ln(5)
@@ -173,7 +173,7 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
         except:
             pass
         if "gráfico" in result.lower():
-            result += " (Resultado apresentado em gráfico)"
+            result += " (Resultado apresentado em grafico)"
         write_text(f"{i}. Pergunta: {query}", bold=True, size=12)
         write_text(f"Resposta: {result}", size=11)
         pdf.ln(3)
