@@ -139,10 +139,20 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
         )
         pdf.multi_cell(0, 7, safe_text, align=align)
 
-    def format_table(data):
-        lines = data.split("\n")
-        for line in lines:
-            write_text(line.strip(), size=10)
+    def write_table(data):
+        lines = data.strip().split("\n")
+        if lines:
+            headers = lines[0].split()
+            pdf.set_font("Arial", "B", 10)
+            for header in headers:
+                pdf.cell(15, 7, header, border=1, align="C")
+            pdf.ln()
+            pdf.set_font("Arial", "", 10)
+            for line in lines[1:]:
+                values = line.split()
+                for value in values:
+                    pdf.cell(15, 7, value, border=1, align="C")
+                pdf.ln()
 
     # Cabeçalho
     pdf.set_font("Arial", "B", 16)
@@ -172,7 +182,6 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     pdf.ln(5)
 
     min_perguntas = 4
-    # Remove duplicatas do histórico com base na pergunta
     unique_hist = []
     seen_queries = set()
     for h in reversed(hist):
@@ -187,17 +196,20 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
         try:
             parsed = eval(result)
             if isinstance(parsed, dict):
-                result = format_dict(parsed)
+                result = "\n".join([f"{k}: {v}" for k, v in parsed.items()])
             elif isinstance(parsed, list):
-                result = format_list(parsed)
+                result = ", ".join(str(i) for i in parsed)
             elif isinstance(parsed, str) and "min" in parsed and "max" in parsed:
-                result = result.replace("\n", " ").strip()  # Compacta a tabela em uma linha
+                result = result.strip()  # Mantém a formatação original da tabela
         except:
             pass
         if "gráfico" in result.lower():
             result += " (Resultado apresentado em grafico)"
         write_text(f"{i}. Pergunta: {query}", bold=True, size=12)
-        write_text(f"Resposta: {result}", size=10)
+        if "min" in result and "max" in result:
+            write_table(result)
+        else:
+            write_text(f"Resposta: {result}", size=10)
         pdf.ln(3)
 
     # 4. Conclusões do agente
@@ -205,7 +217,9 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
         pdf.set_font("Arial", "B", 14)
         pdf.cell(0, 10, "4. Conclusoes do Agente", ln=True)
         pdf.ln(3)
-        write_text(conclusoes, size=11)
+        conclusoes_lines = conclusoes.split("\n")
+        for line in conclusoes_lines:
+            write_text(line, size=11)
         pdf.ln(5)
 
     # 5. Código-fonte / JSON exportação
@@ -225,12 +239,6 @@ def gerar_pdf(hist, conclusoes=None, framework="Streamlit + Python", estrutura="
     # Gera PDF em memória e retorna bytes
     pdf_bytes = pdf.output(dest='S').encode('latin-1', errors='ignore')
     return pdf_bytes
-
-def format_list(l):
-    return ", ".join([str(i) for i in l])
-
-def format_dict(d):
-    return "\n".join([f"{k}: {v}" for k, v in d.items()])
 
 
 # ===================== INTERFACE PRINCIPAL =====================
